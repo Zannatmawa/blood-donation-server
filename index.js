@@ -10,6 +10,31 @@ const port = process.env.PORT || 3000
 app.use(express.json());
 app.use(cors());
 
+const admin = require("firebase-admin");
+
+const serviceAccount = require("./blood-donation-center-b0020-firebase-adminsdk-fbsvc-9724785245.json");
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
+
+const verifyFBToken = async (req, res, next) => {
+    const token = req.headers.authorization;
+
+    if (!token) {
+        return res.status(401).send({ message: 'unautorized access' })
+    }
+    try {
+        const idToken = token.split(' ')[1];
+        const decoded = await admin.auth().verifyIdToken(idToken);
+        req.decoded_email = decoded.email;
+        next();
+    }
+    catch (err) {
+        return res.status(401).send({ message: 'unauthorized access!' })
+
+    }
+}
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.jbskmxj.mongodb.net/?appName=Cluster0`;
 
@@ -30,12 +55,32 @@ async function run() {
         const db = client.db('blood-donation-database');
         const usersCollections = db.collection('users');
         const donationReqCollections = db.collection('all-donation-req');
-
-        app.get('/my-donation-requests', async (req, res) => {
+        //users
+        app.get('/all-users', async (req, res) => {
+            const query = {}
+            const options = { sort: { createdAt: -1 } }
+            const cursor = usersCollections.find(query, options);
+            const result = await cursor.toArray();
+            res.send(result)
+        })
+        app.post('/all-users', async (req, res) => {
+            const users = req.body;
+            users.createdAt = new Date();
+            users.status = 'active';
+            users.role = 'donor';
+            const result = await usersCollections.insertOne(users);
+            res.send(result)
+        })
+        //donor
+        // app.patch('edit-blood-donation-req',)
+        app.get('/my-donation-requests', verifyFBToken, async (req, res) => {
             const query = {}
             const { email } = req.query;
             if (email) {
                 query.requesterEmail = email;
+                if (email !== req.decoded_email) {
+                    return res.status(403).send({ message: 'forbidden access!' })
+                }
             }
             const options = { sort: { donationDate: -1 } }
             const cursor = donationReqCollections.find(query, options);
@@ -50,23 +95,17 @@ async function run() {
             const result = await donationReqCollections.insertOne(donationReq);
             res.send(result)
         })
-        //users
-        app.get('/all-users', async (req, res) => {
-            const query = {}
-            const options = { sort: { createdAt: -1 } }
-            const cursor = usersCollections.find(query, options);
-            const result = await cursor.toArray();
-            res.send(result)
-        })
-        app.post('/all-users', async (req, res) => {
-            const users = req.body;
-            users.createdAt = new Date();
-            users.status = 'pending';
-            users.role = 'donor';
-            const result = await usersCollections.insertOne(users);
-            res.send(result)
-        })
 
+        //all req
+        app.get('/all-blood-donation-request', async (req, res) => {
+            const query = {}
+            if (req.query.status) {
+                query.status = req.query.status;
+            }
+            const cursor = donationReqCollections.find(query)
+            const result = await cursor.toArray();
+            res.send(result);
+        })
 
 
         await client.db("admin").command({ ping: 1 });

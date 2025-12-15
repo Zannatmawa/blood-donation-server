@@ -105,6 +105,27 @@ async function run() {
             res.send(result);
         })
         //donor
+        app.get('/my-donation-requests/:id', verifyFBToken, async (req, res) => {
+            const id = req.params.id;
+
+            const result = await donationReqCollections.findOne({
+                _id: new ObjectId(id)
+            });
+
+            res.send(result);
+        });
+
+        app.patch('/my-donation-requests/:id', verifyFBToken, async (req, res) => {
+            const id = req.params.id;
+            const updatedData = req.body;
+            console.log(updatedData)
+            const query = { _id: new ObjectId(id) }
+            const updatedDoc = { $set: { ...updatedData } };
+            const result = await donationReqCollections.updateOne(query, updatedDoc);
+
+            res.send(result);
+        });
+
         app.get('/my-donation-requests', verifyFBToken, async (req, res) => {
             const query = {}
             const { email } = req.query;

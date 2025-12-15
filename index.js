@@ -3,7 +3,7 @@ const express = require('express')
 const app = express();
 const cors = require('cors');
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 3000
 
 
@@ -55,6 +55,17 @@ async function run() {
         const db = client.db('blood-donation-database');
         const usersCollections = db.collection('users');
         const donationReqCollections = db.collection('all-donation-req');
+
+        const verifyAdmin = async (req, res, next) => {
+            const email = req.decoded_email;
+            const query = { email }
+            const user = await usersCollections.findOne(query);
+            if (!user || user.role !== 'admin') {
+                return res.status(403).send({ message: 'forbidden access!' })
+            }
+            next();
+        }
+
         //users
         app.get('/all-users', async (req, res) => {
             const query = {}
@@ -62,6 +73,16 @@ async function run() {
             const cursor = usersCollections.find(query, options);
             const result = await cursor.toArray();
             res.send(result)
+        })
+        app.get('/all-users/:id', async (req, res) => {
+
+        })
+        app.get('/all-users/:email/role', async (req, res) => {
+
+            const email = req.params.email;
+            const query = { email }
+            const user = await usersCollections.findOne(query);
+            res.send({ role: user?.role || 'donor' })
         })
         app.post('/all-users', async (req, res) => {
             const users = req.body;
@@ -71,8 +92,19 @@ async function run() {
             const result = await usersCollections.insertOne(users);
             res.send(result)
         })
+        app.patch('/all-users/:id/role', verifyFBToken, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const statusInfo = req.body;
+            const query = { _id: new ObjectId(id) }
+            const updatedDoc = {
+                $set: {
+                    status: statusInfo.status
+                }
+            }
+            const result = await usersCollections.updateOne(query, updatedDoc);
+            res.send(result);
+        })
         //donor
-        // app.patch('edit-blood-donation-req',)
         app.get('/my-donation-requests', verifyFBToken, async (req, res) => {
             const query = {}
             const { email } = req.query;
@@ -96,7 +128,7 @@ async function run() {
             res.send(result)
         })
 
-        //all req
+        //all req for admin
         app.get('/all-blood-donation-request', async (req, res) => {
             const query = {}
             if (req.query.status) {
@@ -104,6 +136,18 @@ async function run() {
             }
             const cursor = donationReqCollections.find(query)
             const result = await cursor.toArray();
+            res.send(result);
+        })
+        app.patch('/all-blood-donation-request/:id', verifyFBToken, verifyAdmin, async (req, res) => {
+            const { status } = req.body;
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const updatedDoc = {
+                $set: {
+                    status: status
+                }
+            }
+            const result = await donationReqCollections.updateOne(query, updatedDoc);
             res.send(result);
         })
 

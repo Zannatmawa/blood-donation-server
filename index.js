@@ -84,6 +84,7 @@ async function run() {
             const user = await usersCollections.findOne(query);
             res.send({ role: user?.role || 'donor' })
         })
+
         app.post('/all-users', async (req, res) => {
             const users = req.body;
             users.createdAt = new Date();
@@ -92,7 +93,7 @@ async function run() {
             const result = await usersCollections.insertOne(users);
             res.send(result)
         })
-        app.patch('/all-users/:id/role', verifyFBToken, verifyAdmin, async (req, res) => {
+        app.patch('/all-users/:id/status', verifyFBToken, verifyAdmin, async (req, res) => {
             const id = req.params.id;
             const statusInfo = req.body;
             const query = { _id: new ObjectId(id) }
@@ -104,7 +105,31 @@ async function run() {
             const result = await usersCollections.updateOne(query, updatedDoc);
             res.send(result);
         })
+        //make volunteer 
+        app.patch('/all-users/:id/role', verifyFBToken, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const roleInfo = req.body;
+            console.log(roleInfo)
+            const query = { _id: new ObjectId(id) }
+            const updatedDoc = {
+                $set: {
+                    role: roleInfo.role
+                }
+            }
+            const result = await usersCollections.updateOne(query, updatedDoc);
+            res.send(result);
+        })
         //donor
+        app.delete('/my-donation-requests/:id', verifyFBToken, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            console.log(id)
+            const result = await donationReqCollections.deleteOne(query);
+
+            res.send(result);
+
+        });
+
         app.get('/my-donation-requests/:id', verifyFBToken, async (req, res) => {
             const id = req.params.id;
 
@@ -118,7 +143,6 @@ async function run() {
         app.patch('/my-donation-requests/:id', verifyFBToken, async (req, res) => {
             const id = req.params.id;
             const updatedData = req.body;
-            console.log(updatedData)
             const query = { _id: new ObjectId(id) }
             const updatedDoc = { $set: { ...updatedData } };
             const result = await donationReqCollections.updateOne(query, updatedDoc);

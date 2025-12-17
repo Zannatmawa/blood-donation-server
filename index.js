@@ -74,8 +74,15 @@ async function run() {
             const result = await cursor.toArray();
             res.send(result)
         })
-        app.get('/all-users/:id', async (req, res) => {
+        app.patch('/all-users/:email', async (req, res) => {
+            const email = req.params.email;
+            const updatedData = req.body;
+            console.log(updatedData)
+            const query = { email }
+            const updatedDoc = { $set: { ...updatedData } };
+            const result = await usersCollections.updateOne(query, updatedDoc);
 
+            res.send(result);
         })
         app.get('/all-users/:email/role', async (req, res) => {
 

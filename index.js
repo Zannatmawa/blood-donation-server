@@ -15,7 +15,12 @@ app.use(cors());
 
 const admin = require("firebase-admin");
 
-const serviceAccount = require("./blood-donation-center-b0020-firebase-adminsdk-fbsvc-9724785245.json");
+// const serviceAccount = require("./blood-donation-center-b0020-firebase-adminsdk-fbsvc-9724785245.json");
+
+// const serviceAccount = require("./firebase-admin-key.json");
+
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
+const serviceAccount = JSON.parse(decoded);
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
@@ -54,11 +59,12 @@ const client = new MongoClient(uri, {
 
 async function run() {
     try {
-        await client.connect();
+        // await client.connect();
         const db = client.db('blood-donation-database');
         const usersCollections = db.collection('users');
         const donationReqCollections = db.collection('all-donation-req');
         const fundingCollection = db.collection('funding-collection');
+        const donorCollection = db.collection('donor-collection');
 
         const verifyAdmin = async (req, res, next) => {
             const email = req.decoded_email;
@@ -69,6 +75,27 @@ async function run() {
             }
             next();
         }
+
+
+        //donor collection
+        app.get('/donor-collections', async (req, res) => {
+            const query = {}
+            const cursor = donorCollection.find(query)
+            const result = await cursor.toArray();
+            res.send(result);
+        })
+        app.post('/donor-collections/:id', async (req, res) => {
+            const id = req.params.id;
+            const fundingInfo = req.body;
+            const reqId = id
+            const result = await donorCollection.insertOne({
+                ...fundingInfo, reqId,
+                date: new Date(),
+            });
+
+            res.send(result);
+        })
+        //donor collection
         //stripe
         app.get('/save-funding', async (req, res) => {
             const query = {}
@@ -151,7 +178,7 @@ async function run() {
             res.send({ role: user?.role || 'donor' })
         })
 
-        app.post('/all-users', async (req, res) => {
+        app.post('/all-users', verifyFBToken, verifyAdmin, async (req, res) => {
             const users = req.body;
             users.createdAt = new Date();
             users.status = 'active';
@@ -263,17 +290,20 @@ async function run() {
         })
 
 
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        // await client.db("admin").command({ ping: 1 });
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
 
     }
 }
+run().catch(console.dir);
 
 
+app.get('/', (req, res) => {
+    res.send('Blood Donation API is running')
+})
 
 
 app.listen(port, () => {
     console.log(`Example app listening on port ${port}`)
 })
-run().catch(console.dir);

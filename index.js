@@ -4,6 +4,9 @@ const app = express();
 const cors = require('cors');
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const stripe = require('stripe')(process.env.STRIPE_SECRET);
+
+
 const port = process.env.PORT || 3000
 
 
@@ -55,6 +58,7 @@ async function run() {
         const db = client.db('blood-donation-database');
         const usersCollections = db.collection('users');
         const donationReqCollections = db.collection('all-donation-req');
+        const fundingCollection = db.collection('funding-collection');
 
         const verifyAdmin = async (req, res, next) => {
             const email = req.decoded_email;
@@ -65,7 +69,62 @@ async function run() {
             }
             next();
         }
+        //stripe
+        app.get('/save-funding', async (req, res) => {
+            const query = {}
+            const cursor = fundingCollection.find(query)
+            const result = await cursor.toArray();
+            res.send(result);
+        })
+        app.post("/save-funding", async (req, res) => {
+            const fundingInfo = req.body;
 
+            const result = await fundingCollection.insertOne({
+                ...fundingInfo,
+                date: new Date(),
+            });
+
+            res.send(result);
+        });
+
+        app.post("/create-checkout-session", async (req, res) => {
+            try {
+                const { amount, donorEmail } = req.body;
+
+                const session = await stripe.checkout.sessions.create({
+                    payment_method_types: ["card"],
+                    mode: "payment",
+
+                    customer_email: donorEmail,
+
+                    line_items: [
+                        {
+                            price_data: {
+                                currency: "usd",
+                                product_data: {
+                                    name: "Blood Donation Fund",
+                                },
+                                unit_amount: amount * 100,
+                            },
+                            quantity: 1,
+                        },
+                    ],
+
+                    metadata: {
+                        purpose: "blood-funding",
+                    },
+
+                    success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success`,
+                    cancel_url: `${process.env.SITE_DOMAIN}/funding`,
+                });
+
+                res.send({ url: session.url });
+            } catch (error) {
+                res.status(500).send({ error: error.message });
+            }
+        });
+
+        //stripe
         //users
         app.get('/all-users', async (req, res) => {
             const query = {}
